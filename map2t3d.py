@@ -11,8 +11,17 @@ def fetch_line(f):
     s[1] = s[0].strip()
     return s
     
+def vec_add(v1, v2):
+    return (v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2])
+    
 def vec_sub(v1, v2):
     return (v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2])
+    
+def vec_mult(v, s):
+    return (v[0] * s, v[1] * s, v[2] * s)
+    
+def vec_div(v, s):
+    return (v[0] / s, v[1] / s, v[2] / s)
 
 def vec_cross(v1, v2):
     return (v1[1] * v2[2] - v1[2] * v2[1], v1[2] * v2[0] - v1[0] * v2[2], v1[0] * v2[1] - v1[1] * v2[0])
@@ -152,21 +161,30 @@ for b in brushes:
 		detAz = b[i][0][0] * b[j][0][1] * b[k][1] + b[i][0][1] * b[j][1] * b[k][0][0] \
 		    + b[i][1] * b[j][0][0] * b[k][0][1] - b[i][0][0] * b[j][1] * b[k][0][1]   \
 		    - b[i][0][1] * b[j][0][0] * b[k][1] - b[i][1] * b[j][0][1] * b[k][0][0]
-		p = (detAx / detA, detAy / detA, detAz / detA)
+		p = vec_div((detAx, detAy, detAz), detA)
 		if (point_inside_brush(p, b) and not point_in_set(p, vertices)):
 		    vertices.append(p)
-    polygons = b
-    a = 0
-    for v in vertices:
-	print a
-	a = a + 1
-	for p in b:
-	    print str(v) + ' ' + str(p[0]) + ' ' + str(p[1]) + ' ' + str(abs(vec_dot(v, p[0]) - p[1]))
+
+    for p in b:
+	outfile.write('               Begin Polygon\n')
+	origin = (float(0), float(0), float(0))
+	counter = 0
+	relevant = []
+	for v in vertices:
 	    if (abs(vec_dot(v, p[0]) - p[1]) < 0.01):
-		p.append(v)
-		break
-#    for p in b:
-#	print "polygon " + str(p)
+		relevant.append(v)
+		origin = vec_add(origin, v)
+		counter = counter + 1
+	origin = vec_div(origin, counter)
+	outfile.write('                  Origin   %(ox)0+13.6f,%(oy)0+13.6f,%(oz)0+13.6f\n' \
+		    % {'ox' : origin[0], 'oy' : origin[1], 'oz' : origin[2]} \
+		    + '                  Normal   %(nx)0+13.6f,%(ny)0+13.6f,%(nz)0+13.6f\n' \
+		    % {'nx' : p[0][0], 'ny': p[0][1], 'nz': p[0][2]} \
+		    + '                  TextureU +00001.000000,+00000.000000,+00000.000000\n' \
+		    + '                  TextureV +00000.000000,+00001.000000,+00000.000000\n')
+	for v in relevant:
+	    outfile.write('                  Vertex   %(x)0+13.6f,%(y)0+13.6f,%(z)0+13.6f\n' % {'x' : v[0], 'y': v[1], 'z': v[2]})
+    # finalize brush
     outfile.write('            End PolyList\n' \
 		+ '         End Brush\n' \
 		+ '         Begin Object Class=BrushComponent Name=BrushComponent0 ObjName=BrushComponent_' + str(index) + ' Archetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\n' \
