@@ -50,7 +50,20 @@ def point_in_set(point, vertices):
 	if (vec_length(vec_sub(p, point)) < 0.01):
 	    return True
     return False
-    
+
+# for reference when sorting
+global current_plane
+global current_centre
+
+# if the normal of the triangle created by polygon centre and the vertices is
+# not colinear with the plane normal, reverse the order
+def clockwise_cmp(a, b):
+    v1 = vec_sub(a, current_centre)
+    v2 = vec_sub(b, current_centre)
+    if (vec_dot(current_plane[0], vec_cross(v2, v1)) > 0.0):
+	return 1
+    return -1
+
 if (len(sys.argv) != 3):
     print_help()
     exit()
@@ -90,7 +103,6 @@ while (state[0] != ''):
     elif (depth == 2):
 	# brush level
 	if (state[1].lower().startswith('terraindef') or state[1].lower().startswith('patchdef')):
-	    #print state[1]
 	    # skip the entire block
 	    while (not state[1].startswith('{')):
 		state = fetch_line(infile)
@@ -103,11 +115,9 @@ while (state[0] != ''):
 		    skipdepth = skipdepth - 1
 		if (skipdepth == 0):
 		    break
-	    #print "skipped"
 	    continue
 	elif (state[1].startswith('}')):
 	    if (len(brush) > 0):
-		#print brush
 		brushes.append(brush)
 	    depth = depth - 1
 	    continue
@@ -131,15 +141,24 @@ fname = sys.argv[1][sys.argv[1].rfind('/') + 1 : len(sys.argv[1])]
 dot = fname.rfind('.')
 if (dot >= 0):
     fname = fname[0 : dot]
-outfile.write('Begin Map Name=' + fname + '\n' \
-	    + '   Begin Level NAME=PersistentLevel\n')
+outfile.write('Begin Map Name=' + fname + '\r\n' \
+	    + '   Begin Level NAME=PersistentLevel\r\n')
 
 # find brush vertices
 index = 0
 for b in brushes:
-    outfile.write('      Begin Actor Class=Brush Name=Brush_' + str(index) + ' Archetype=Brush\'Engine.Default__Brush\'\n' \
-		+ '         Begin Brush Name=Model_' + str(index) + '\n'                                                   \
-		+ '            Begin PolyList\n')
+    outfile.write('      Begin Actor Class=Brush Name=Brush_' + str(index + 1) + ' Archetype=Brush\'Engine.Default__Brush\'\r\n' \
+		+ '         Begin Object Class=BrushComponent Name=BrushComponent0 ObjName=BrushComponent_' + str(index) + ' Archetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\r\n' \
+		+ '            Brush=Model\'Model_' + str(index) + '\'\r\n' \
+		+ '            ReplacementPrimitive=None\r\n' \
+		+ '            LightingChannels=(bInitialized=True,Dynamic=True)\r\n' \
+		+ '            Name="BrushComponent_' + str(index) + '"\r\n' \
+		+ '            ObjectArchetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\r\n' \
+		+ '         End Object\r\n' \
+		+ '         CsgOper=CSG_Add\r\n' \
+		+ '         Begin Brush Name=Model_' + str(index) + '\r\n' \
+		+ '            Begin PolyList\r\n')
+    # calculate the vertex set
     vertices = []
     for i in range(len(b) - 2):
 	for j in range(1, len(b) - 1):
@@ -164,50 +183,49 @@ for b in brushes:
 		p = vec_div((detAx, detAy, detAz), detA)
 		if (point_inside_brush(p, b) and not point_in_set(p, vertices)):
 		    vertices.append(p)
-
+        
     for p in b:
-	outfile.write('               Begin Polygon\n')
-	origin = (float(0), float(0), float(0))
-	counter = 0
+	outfile.write('               Begin Polygon Flags=3584\r\n')
+	writtenFirst = False
+	# sort the poly sequences clockwise
 	relevant = []
+	# find the centre
+	current_centre = (float(0), float(0), float(0))
 	for v in vertices:
 	    if (abs(vec_dot(v, p[0]) - p[1]) < 0.01):
+		current_centre = vec_add(current_centre, v)
 		relevant.append(v)
-		origin = vec_add(origin, v)
-		counter = counter + 1
-	origin = vec_div(origin, counter)
-	outfile.write('                  Origin   %(ox)0+13.6f,%(oy)0+13.6f,%(oz)0+13.6f\n' \
-		    % {'ox' : origin[0], 'oy' : origin[1], 'oz' : origin[2]} \
-		    + '                  Normal   %(nx)0+13.6f,%(ny)0+13.6f,%(nz)0+13.6f\n' \
-		    % {'nx' : p[0][0], 'ny': p[0][1], 'nz': p[0][2]} \
-		    + '                  TextureU +00001.000000,+00000.000000,+00000.000000\n' \
-		    + '                  TextureV +00000.000000,+00001.000000,+00000.000000\n')
+	current_plane = p
+	current_centre = vec_div(current_centre, len(relevant))
+	relevant.sort(clockwise_cmp)
 	for v in relevant:
-	    outfile.write('                  Vertex   %(x)0+13.6f,%(y)0+13.6f,%(z)0+13.6f\n' % {'x' : v[0], 'y': v[1], 'z': v[2]})
+	    if (not writtenFirst):
+		outfile.write('                  Origin   %(ox)0+13.6f,%(oy)0+13.6f,%(oz)0+13.6f\r\n' \
+			    % {'ox' : v[0], 'oy' : v[1], 'oz' : v[2]} \
+			    + '                  Normal   %(nx)0+13.6f,%(ny)0+13.6f,%(nz)0+13.6f\r\n' \
+			    % {'nx' : p[0][0], 'ny': p[0][1], 'nz': p[0][2]} \
+			    + '                  TextureU +00001.000000,+00000.000000,+00000.000000\r\n' \
+			    + '                  TextureV +00000.000000,+00001.000000,+00000.000000\r\n')
+		writtenFirst = True
+	    outfile.write('                  Vertex   %(x)0+13.6f,%(y)0+13.6f,%(z)0+13.6f\r\n' % {'x' : v[0], 'y': v[1], 'z': v[2]})
+	# finalize polygon
+	outfile.write('               End Polygon\r\n')
     # finalize brush
-    outfile.write('            End PolyList\n' \
-		+ '         End Brush\n' \
-		+ '         Begin Object Class=BrushComponent Name=BrushComponent0 ObjName=BrushComponent_' + str(index) + ' Archetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\n' \
-		+ '            Brush=Model\'Model_' + str(index) + '\'\n' \
-		+ '            ReplacementPrimitive=None\n' \
-		+ '            LightingChannels=(bInitialized=True,Dynamic=True)\n' \
-		+ '            Name="BrushComponent_' + str(index) + '"\n' \
-		+ '            ObjectArchetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\n' \
-		+ '         End Object\n' \
-		+ '         CsgOper=CSG_Add\n' \
-		+ '         Brush=Model\'Model_' + str(index) + '\'\n' \
-		+ '         BrushComponent=BrushComponent\'BrushComponent_' + str(index) + '\'\n' \
-		+ '         Components(0)=BrushComponent\'BrushComponent_' + str(index) + '\'\n' \
-		+ '         CreationTime=0.0\n' \
-		+ '         Tag="Brush"\n' \
-		+ '         CollisionComponent=BrushComponent\'BrushComponent_' + str(index) + '\'\n' \
-		+ '         Name="Brush_' + str(index) + '"\n' \
-		+ '         ObjectArchetype=Brush\'Engine.Default__Brush\'\n' \
-		+ '      End Actor\n')
+    outfile.write('            End PolyList\r\n' \
+		+ '         End Brush\r\n' \
+		+ '         Brush=Model\'Model_' + str(index) + '\'\r\n' \
+		+ '         BrushComponent=BrushComponent\'BrushComponent_' + str(index) + '\'\r\n' \
+		+ '         Components(0)=BrushComponent\'BrushComponent_' + str(index) + '\'\r\n' \
+		+ '         CreationTime=12.345678\r\n' \
+		+ '         Tag="Brush"\r\n' \
+		+ '         CollisionComponent=BrushComponent\'BrushComponent_' + str(index) + '\'\r\n' \
+		+ '         Name="Brush_' + str(index + 1) + '"\r\n' \
+		+ '         ObjectArchetype=Brush\'Engine.Default__Brush\'\r\n' \
+		+ '      End Actor\r\n')
     index = index + 1
 
 # finalize output
-outfile.write('   End Level\n' \
-	    + 'Begin Surface\n' \
-	    + 'End Surface\n' \
-	    + 'End Map\n')
+outfile.write('   End Level\r\n' \
+	    + 'Begin Surface\r\n' \
+	    + 'End Surface\r\n' \
+	    + 'End Map\r\n')
