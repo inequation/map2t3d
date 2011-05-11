@@ -51,18 +51,33 @@ def point_in_set(point, vertices):
 	    return True
     return False
 
-# for reference when sorting
-global current_plane
-global current_centre
-
-# if the normal of the triangle created by polygon centre and the vertices is
-# not colinear with the plane normal, reverse the order
-def clockwise_cmp(a, b):
-    v1 = vec_sub(a, current_centre)
-    v2 = vec_sub(b, current_centre)
-    if (vec_dot(current_plane[0], vec_cross(v2, v1)) > 0.0):
-	return 1
-    return -1
+def get_tangent_binormal(normal):
+    # work around silly python limitations
+    b = [normal[0], normal[1], normal[2]]
+    maxc = 0
+    minc = 0
+    # find the largest and smallest (by magnitude) components of the vector
+    for i in range(1, len(b)):
+	if (abs(b[i]) > abs(b[maxc])):
+	    maxc = i
+	elif (abs(b[i]) < abs(b[minc])):
+	    minc = i
+    # set the max and min elements to exaggerated values to get a vector that
+    # stands a chance to be perpendicular to the normal
+    b[minc] = 1.0
+    b[maxc] = 0.0
+    binormal = (b[0], b[1], b[2])
+    # perpendicularize it!
+    dot = vec_dot(binormal, normal)
+    if (abs(dot) > 0.01):
+	binormal = vec_normalize(vec_sub(binormal, vec_mult(normal, dot)))
+    # find a vector perpendicular to the other two
+    tangent = vec_normalize(vec_cross(binormal, normal))
+    # cross again to ensure perpendicularity
+    binormal = vec_normalize(vec_cross(normal, tangent))
+    return [tangent, binormal]
+    
+# =============================================================================
 
 if (len(sys.argv) != 3):
     print_help()
@@ -187,17 +202,26 @@ for b in brushes:
     for p in b:
 	outfile.write('               Begin Polygon Flags=3584\r\n')
 	writtenFirst = False
-	# sort the poly sequences clockwise
+	# UDK requires the the vertex sequences to be clockwise, or it doesn't
+	# create the polygon
 	relevant = []
-	# find the centre
-	current_centre = (float(0), float(0), float(0))
+	# find the polygon centre
+	centre = (float(0), float(0), float(0))
+	# find vertices lying on the current plane
 	for v in vertices:
 	    if (abs(vec_dot(v, p[0]) - p[1]) < 0.01):
-		current_centre = vec_add(current_centre, v)
+		centre = vec_add(centre, v)
 		relevant.append(v)
-	current_plane = p
-	current_centre = vec_div(current_centre, len(relevant))
-	relevant.sort(clockwise_cmp)
+	centre = vec_div(centre, len(relevant))
+	# sort by angle (ensures clockwiseness)
+	tb = get_tangent_binormal(p[0])
+	def get_angle_key(v):
+	    r = vec_sub(v, centre)
+	    x = vec_dot(r, tb[0])
+	    y = vec_dot(r, tb[1])
+	    return atan2(y, x)
+	relevant.sort(None, get_angle_key)
+	# finally, dump the vertices to file
 	for v in relevant:
 	    if (not writtenFirst):
 		outfile.write('                  Origin   %(ox)0+13.6f,%(oy)0+13.6f,%(oz)0+13.6f\r\n' \
