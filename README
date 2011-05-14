@@ -1,0 +1,7 @@
+A half-assed .map to .t3d converter written in Python. For usage information, just run it:
+- on *nix, type:
+  $ chmod +x map2t3d.py && ./map2t3d.py
+- on Windows, make sure you have Python installed, and then run:
+  >python map2t3d.py
+
+Written by Leszek Godlewski <lg@inequation.org>
