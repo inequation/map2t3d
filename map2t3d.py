@@ -44,7 +44,7 @@ def vec_normalize(v):
 	return (v[0] * l, v[1] * l, v[2] * l)
 
 def point_inside_brush(point, brush):
-	for p in brush:
+	for p in brush["planes"]:
 		if (vec_dot(point, p[0]) - p[1] > 0.01):
 			return False
 	return True
@@ -130,7 +130,7 @@ while (state[0] != ''):
 		if (state[1].startswith('{')):
 			depth = depth + 1
 			# clear the brush
-			brush = []
+			brush = {"planes": [], "detail": False}
 			common_only = True
 			continue
 		elif (state[1].startswith('}')):
@@ -155,6 +155,7 @@ while (state[0] != ''):
 					break
 			continue
 		elif (state[1].startswith('}')):
+			brush["detail"] = detail
 			if (len(brush) > 0	\
 				and ((not detail_only and not structural_only) or (detail_only and detail) or (structural_only and not detail))	\
 				and (not cull_common_brushes or (cull_common_brushes and not common_only))):
@@ -179,7 +180,7 @@ while (state[0] != ''):
 			if (vec_dot(cross, cross) > 0.1):
 				normal = vec_normalize(cross)
 				plane = [normal, vec_dot(p1, normal)]
-				brush.append(plane)
+				brush["planes"].append(plane)
 			detail = state[1].find("detail") >= 0
 print("Done.")
 
@@ -206,7 +207,6 @@ for b in brushes:
 		outfile.write('Begin Map Name=' + mapname + '\r\n' \
 					+ '   Begin Level NAME=PersistentLevel\r\n')
 		fcounter = fcounter + 1
-	detail = False
 	outfile.write('	  Begin Actor Class=Brush Name=Brush_' + str(index + 1) + ' Archetype=Brush\'Engine.Default__Brush\'\r\n' \
 				+ '		 Begin Object Class=BrushComponent Name=BrushComponent0 ObjName=BrushComponent_' + str(index) + ' Archetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\r\n' \
 				+ '			Brush=Model\'Model_' + str(index) + '\'\r\n' \
@@ -215,36 +215,38 @@ for b in brushes:
 				+ '			Name="BrushComponent_' + str(index) + '"\r\n' \
 				+ '			ObjectArchetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\r\n' \
 				+ '		 End Object\r\n' \
-				+ '		 CsgOper=CSG_Add\r\n' \
-				+ '		 Begin Brush Name=Model_' + str(index) + '\r\n' \
+				+ '		 CsgOper=CSG_Add\r\n')
+	if (b["detail"]):
+		outfile.write('	  	 PolyFlags=32\r\n')
+	outfile.write('		 Begin Brush Name=Model_' + str(index) + '\r\n' \
 				+ '			Begin PolyList\r\n')
 	# calculate the vertex set
 	vertices = []
-	for i in range(len(b) - 2):
-		for j in range(1, len(b) - 1):
-			for k in range(2, len(b)):
+	for i in range(len(b["planes"]) - 2):
+		for j in range(1, len(b["planes"]) - 1):
+			for k in range(2, len(b["planes"])):
 				# solve with Cramer for intersection point (i.e. vertex)
 				if (i == j or j == k or i == k):
 					continue
-				detA = b[i][0][0] * b[j][0][1] * b[k][0][2] + b[i][0][1] * b[j][0][2] * b[k][0][0] \
-					+ b[i][0][2] * b[j][0][0] * b[k][0][1] - b[i][0][0] * b[j][0][2] * b[k][0][1]  \
-					- b[i][0][1] * b[j][0][0] * b[k][0][2] - b[i][0][2] * b[j][0][1] * b[k][0][0]
+				detA = b["planes"][i][0][0] * b["planes"][j][0][1] * b["planes"][k][0][2] + b["planes"][i][0][1] * b["planes"][j][0][2] * b["planes"][k][0][0] \
+					+ b["planes"][i][0][2] * b["planes"][j][0][0] * b["planes"][k][0][1] - b["planes"][i][0][0] * b["planes"][j][0][2] * b["planes"][k][0][1]  \
+					- b["planes"][i][0][1] * b["planes"][j][0][0] * b["planes"][k][0][2] - b["planes"][i][0][2] * b["planes"][j][0][1] * b["planes"][k][0][0]
 				if (abs(detA) < 0.001):
 					continue
-				detAx = b[i][1] * b[j][0][1] * b[k][0][2] + b[i][0][1] * b[j][0][2] * b[k][1] \
-					+ b[i][0][2] * b[j][1] * b[k][0][1] - b[i][1] * b[j][0][2] * b[k][0][1]   \
-					- b[i][0][1] * b[j][1] * b[k][0][2] - b[i][0][2] * b[j][0][1] * b[k][1]
-				detAy = b[i][0][0] * b[j][1] * b[k][0][2] + b[i][1] * b[j][0][2] * b[k][0][0] \
-					+ b[i][0][2] * b[j][0][0] * b[k][1] - b[i][0][0] * b[j][0][2] * b[k][1]   \
-					- b[i][1] * b[j][0][0] * b[k][0][2] - b[i][0][2] * b[j][1] * b[k][0][0]
-				detAz = b[i][0][0] * b[j][0][1] * b[k][1] + b[i][0][1] * b[j][1] * b[k][0][0] \
-					+ b[i][1] * b[j][0][0] * b[k][0][1] - b[i][0][0] * b[j][1] * b[k][0][1]   \
-					- b[i][0][1] * b[j][0][0] * b[k][1] - b[i][1] * b[j][0][1] * b[k][0][0]
+				detAx = b["planes"][i][1] * b["planes"][j][0][1] * b["planes"][k][0][2] + b["planes"][i][0][1] * b["planes"][j][0][2] * b["planes"][k][1] \
+					+ b["planes"][i][0][2] * b["planes"][j][1] * b["planes"][k][0][1] - b["planes"][i][1] * b["planes"][j][0][2] * b["planes"][k][0][1]   \
+					- b["planes"][i][0][1] * b["planes"][j][1] * b["planes"][k][0][2] - b["planes"][i][0][2] * b["planes"][j][0][1] * b["planes"][k][1]
+				detAy = b["planes"][i][0][0] * b["planes"][j][1] * b["planes"][k][0][2] + b["planes"][i][1] * b["planes"][j][0][2] * b["planes"][k][0][0] \
+					+ b["planes"][i][0][2] * b["planes"][j][0][0] * b["planes"][k][1] - b["planes"][i][0][0] * b["planes"][j][0][2] * b["planes"][k][1]   \
+					- b["planes"][i][1] * b["planes"][j][0][0] * b["planes"][k][0][2] - b["planes"][i][0][2] * b["planes"][j][1] * b["planes"][k][0][0]
+				detAz = b["planes"][i][0][0] * b["planes"][j][0][1] * b["planes"][k][1] + b["planes"][i][0][1] * b["planes"][j][1] * b["planes"][k][0][0] \
+					+ b["planes"][i][1] * b["planes"][j][0][0] * b["planes"][k][0][1] - b["planes"][i][0][0] * b["planes"][j][1] * b["planes"][k][0][1]   \
+					- b["planes"][i][0][1] * b["planes"][j][0][0] * b["planes"][k][1] - b["planes"][i][1] * b["planes"][j][0][1] * b["planes"][k][0][0]
 				p = vec_div((detAx, detAy, detAz), detA)
 				if (point_inside_brush(p, b) and not point_in_set(p, vertices)):
 					vertices.append(p)
 
-	for p in b:
+	for p in b["planes"]:
 		writtenFirst = False
 		# UDK requires the the vertex sequences to be clockwise, or it doesn't
 		# create the polygon
