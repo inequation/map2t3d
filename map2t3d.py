@@ -4,7 +4,7 @@ import sys
 from math import *
 
 def print_help():
-	print("Usage: %s <infile> <outfile> [<options>]" % sys.argv[0])
+	print("Usage: %s <infile> [<options>]" % sys.argv[0])
 	print("Options:")
 	print("    -s    parse structural brushes only")
 	print("    -d    parse detail brushes only")
@@ -82,14 +82,14 @@ def get_tangent_binormal(normal):
 	
 # =============================================================================
 
-if (len(sys.argv) < 3):
+if (len(sys.argv) < 2):
 	print_help()
 	exit()
 
 structural_only = False
 detail_only = False
 
-for i in range(3, len(sys.argv)):
+for i in range(2, len(sys.argv)):
 	if (sys.argv[i] == "-s"):
 		structural_only = True
 	elif (sys.argv[i] == "-d"):
@@ -168,25 +168,38 @@ while (state[0] != ''):
 			# calculate plane
 			v1 = vec_sub(p2, p1)
 			v2 = vec_sub(p2, p3)
-			normal = vec_normalize(vec_cross(v1, v2))
-			plane = [normal, vec_dot(p1, normal)]
-			brush.append(plane)
+			cross = vec_cross(v1, v2)
+			# don't add degenerate triangles
+			if (vec_dot(cross, cross) > 0.1):
+				normal = vec_normalize(vec_cross(v1, v2))
+				plane = [normal, vec_dot(p1, normal)]
+				brush.append(plane)
 			detail = state[1].find("detail") >= 0
 print("Done.")
 
 # start the output
-outfile = open(sys.argv[2], 'w')
 fname = sys.argv[1][sys.argv[1].rfind('/') + 1 : len(sys.argv[1])]
 dot = fname.rfind('.')
 if (dot >= 0):
 	fname = fname[0 : dot]
-outfile.write('Begin Map Name=' + fname + '\r\n' \
-		+ '   Begin Level NAME=PersistentLevel\r\n')
+
+fcounter = int(0)
+bcounter = int(0)
+outfile = None
+
+brushes_per_file = int(200)
 
 print("Writing...")
 # find brush vertices
 index = 0
 for b in brushes:
+	if (outfile == None):
+		mapname = "%s-%03d" % (fname, fcounter)
+		print("Opening %s.t3d for a batch of %d brushes..." % (mapname, brushes_per_file))
+		outfile = open(mapname + ".t3d", 'w')
+		outfile.write('Begin Map Name=' + mapname + '\r\n' \
+					+ '   Begin Level NAME=PersistentLevel\r\n')
+		fcounter = fcounter + 1
 	detail = False
 	outfile.write('	  Begin Actor Class=Brush Name=Brush_' + str(index + 1) + ' Archetype=Brush\'Engine.Default__Brush\'\r\n' \
 				+ '		 Begin Object Class=BrushComponent Name=BrushComponent0 ObjName=BrushComponent_' + str(index) + ' Archetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\r\n' \
@@ -224,9 +237,8 @@ for b in brushes:
 				p = vec_div((detAx, detAy, detAz), detA)
 				if (point_inside_brush(p, b) and not point_in_set(p, vertices)):
 					vertices.append(p)
-		
+
 	for p in b:
-		outfile.write('			   Begin Polygon Flags=3584\r\n')
 		writtenFirst = False
 		# UDK requires the the vertex sequences to be clockwise, or it doesn't
 		# create the polygon
@@ -238,6 +250,9 @@ for b in brushes:
 			if (abs(vec_dot(v, p[0]) - p[1]) < 0.01):
 				centre = vec_add(centre, v)
 				relevant.append(v)
+		if (len(relevant) < 1):
+			continue
+		outfile.write('			   Begin Polygon Flags=3584\r\n')
 		centre = vec_div(centre, len(relevant))
 		# sort by angle (ensures clockwiseness)
 		tb = get_tangent_binormal(p[0])
@@ -273,10 +288,20 @@ for b in brushes:
 				+ '		 ObjectArchetype=Brush\'Engine.Default__Brush\'\r\n' \
 				+ '	  End Actor\r\n')
 	index = index + 1
+	bcounter = bcounter + 1
+	if (bcounter >= brushes_per_file):
+		outfile.write('   End Level\r\n' \
+			+ 'Begin Surface\r\n' \
+			+ 'End Surface\r\n' \
+			+ 'End Map\r\n')
+		outfile.close()
+		bcounter = int(0)
+		outfile = None
 
 # finalize output
 outfile.write('   End Level\r\n' \
 			+ 'Begin Surface\r\n' \
 			+ 'End Surface\r\n' \
 			+ 'End Map\r\n')
+outfile.close()
 print("Done.")
