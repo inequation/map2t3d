@@ -305,9 +305,10 @@ for b in brushes:
 		outfile = None
 
 # finalize output
-outfile.write('   End Level\r\n' \
-			+ 'Begin Surface\r\n' \
-			+ 'End Surface\r\n' \
-			+ 'End Map\r\n')
-outfile.close()
+if (outfile != None):
+	outfile.write('   End Level\r\n' \
+				+ 'Begin Surface\r\n' \
+				+ 'End Surface\r\n' \
+				+ 'End Map\r\n')
+	outfile.close()
 print("Done.")
