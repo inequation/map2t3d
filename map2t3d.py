@@ -83,6 +83,7 @@ if (len(sys.argv) != 3):
 	print_help()
 	exit()
 
+print("Parsing input...")
 # load brushwork from the .map file
 infile = open(sys.argv[1], 'r')
 depth = int(0)
@@ -149,6 +150,7 @@ while (state[0] != ''):
 			normal = vec_normalize(vec_cross(v1, v2))
 			plane = [normal, vec_dot(p1, normal)]
 			brush.append(plane)
+print("Done.")
 
 # start the output
 outfile = open(sys.argv[2], 'w')
@@ -159,6 +161,7 @@ if (dot >= 0):
 outfile.write('Begin Map Name=' + fname + '\r\n' \
 		+ '   Begin Level NAME=PersistentLevel\r\n')
 
+print("Writing...")
 # find brush vertices
 index = 0
 for b in brushes:
@@ -219,8 +222,8 @@ for b in brushes:
 			r = vec_sub(v, centre)
 			x = vec_dot(r, tb[0])
 			y = vec_dot(r, tb[1])
-			return atan2(y, x)
-		relevant.sort(None, get_angle_key)
+			return int(atan2(y, x) / pi * 180.0)
+		relevant.sort(key=get_angle_key)
 		# finally, dump the vertices to file
 		for v in relevant:
 			if (not writtenFirst):
@@ -253,3 +256,4 @@ outfile.write('   End Level\r\n' \
 			+ 'Begin Surface\r\n' \
 			+ 'End Surface\r\n' \
 			+ 'End Map\r\n')
+print("Done.")
