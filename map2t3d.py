@@ -157,7 +157,7 @@ while (state[0] != ''):
 		elif (state[1].startswith('}')):
 			if (len(brush) > 0	\
 				and ((not detail_only and not structural_only) or (detail_only and detail) or (structural_only and not detail))	\
-				and (not cull_common_brushes or (cull_common_brushes and common_only))):
+				and (not cull_common_brushes or (cull_common_brushes and not common_only))):
 					brushes.append(brush)
 			depth = depth - 1
 			continue
