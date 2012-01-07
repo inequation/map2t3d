@@ -8,6 +8,7 @@ def print_help():
 	print("Options:")
 	print("    -s    parse structural brushes only")
 	print("    -d    parse detail brushes only")
+	print("    -n    do not cull brushes textured with common/* textures only")
 	
 def fetch_line(f):
 	s = [f.readline(), '']
@@ -44,9 +45,9 @@ def vec_normalize(v):
 
 def point_inside_brush(point, brush):
 	for p in brush:
-		if (vec_dot(point, p[0]) - p[1] >= 0):
-			return True
-	return False
+		if (vec_dot(point, p[0]) - p[1] > 0.01):
+			return False
+	return True
 	
 def point_in_set(point, vertices):
 	for p in vertices:
@@ -88,6 +89,7 @@ if (len(sys.argv) < 2):
 
 structural_only = False
 detail_only = False
+cull_common_brushes = True
 
 for i in range(2, len(sys.argv)):
 	if (sys.argv[i] == "-s"):
@@ -97,6 +99,7 @@ for i in range(2, len(sys.argv)):
 print("Settings:")
 print("    structural only: %r" % structural_only)
 print("    detail only: %r" % detail_only)
+print("    cull common/* brushes: %r" % cull_common_brushes)
 
 print("Parsing input...")
 # load brushwork from the .map file
@@ -107,6 +110,7 @@ brush = []
 brushes = []
 detail = False
 worldspawn = False
+common_only = True
 while (state[0] != ''):
 	state = fetch_line(infile)
 	# skip comment lines
@@ -127,6 +131,7 @@ while (state[0] != ''):
 			depth = depth + 1
 			# clear the brush
 			brush = []
+			common_only = True
 			continue
 		elif (state[1].startswith('}')):
 			depth = depth - 1
@@ -135,9 +140,6 @@ while (state[0] != ''):
 			continue
 	elif (depth == 2):
 		# brush level
-		if (state[1] == "\"classname\" \"worldspawn\""):
-			worldspawn = True
-			continue
 		if (state[1].lower().startswith('terraindef') or state[1].lower().startswith('patchdef')):
 			# skip the entire block
 			while (not state[1].startswith('{')):
@@ -153,8 +155,9 @@ while (state[0] != ''):
 					break
 			continue
 		elif (state[1].startswith('}')):
-			if (len(brush) > 0 and	\
-				((not detail_only and not structural_only) or (detail_only and detail) or (structural_only and not detail))):
+			if (len(brush) > 0	\
+				and ((not detail_only and not structural_only) or (detail_only and detail) or (structural_only and not detail))	\
+				and (not cull_common_brushes or (cull_common_brushes and common_only))):
 					brushes.append(brush)
 			depth = depth - 1
 			continue
@@ -166,12 +169,15 @@ while (state[0] != ''):
 			p2 = (float(tokens[6]), float(tokens[7]), float(tokens[8]))
 			p3 = (float(tokens[11]), float(tokens[12]), float(tokens[13]))
 			# calculate plane
-			v1 = vec_sub(p2, p1)
-			v2 = vec_sub(p2, p3)
+			v1 = vec_sub(p1, p2)
+			v2 = vec_sub(p3, p2)
 			cross = vec_cross(v1, v2)
+			# check texture
+			if (not tokens[15].startswith("common/")):
+				common_only = False
 			# don't add degenerate triangles
 			if (vec_dot(cross, cross) > 0.1):
-				normal = vec_normalize(vec_cross(v1, v2))
+				normal = vec_normalize(cross)
 				plane = [normal, vec_dot(p1, normal)]
 				brush.append(plane)
 			detail = state[1].find("detail") >= 0
@@ -187,7 +193,7 @@ fcounter = int(0)
 bcounter = int(0)
 outfile = None
 
-brushes_per_file = int(200)
+brushes_per_file = int(12000)
 
 print("Writing...")
 # find brush vertices
