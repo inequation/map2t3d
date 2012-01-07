@@ -173,7 +173,7 @@ while (state[0] != ''):
 			v2 = vec_sub(p3, p2)
 			cross = vec_cross(v1, v2)
 			# check texture
-			if (not tokens[15].startswith("common/")):
+			if (not tokens[15].startswith("common/") and not tokens[15].startswith("sky/")):
 				common_only = False
 			# don't add degenerate triangles
 			if (vec_dot(cross, cross) > 0.1):
