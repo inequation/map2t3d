@@ -4,7 +4,10 @@ import sys
 from math import *
 
 def print_help():
-	print("Usage: %s <infile> <outfile>\n" % sys.argv[0])
+	print("Usage: %s <infile> <outfile> [<options>]" % sys.argv[0])
+	print("Options:")
+	print("    -s    parse structural brushes only")
+	print("    -d    parse detail brushes only")
 	
 def fetch_line(f):
 	s = [f.readline(), '']
@@ -79,9 +82,21 @@ def get_tangent_binormal(normal):
 	
 # =============================================================================
 
-if (len(sys.argv) != 3):
+if (len(sys.argv) < 3):
 	print_help()
 	exit()
+
+structural_only = False
+detail_only = False
+
+for i in range(3, len(sys.argv)):
+	if (sys.argv[i] == "-s"):
+		structural_only = True
+	elif (sys.argv[i] == "-d"):
+		detail_only = True
+print("Settings:")
+print("    structural only: %r" % structural_only)
+print("    detail only: %r" % detail_only)
 
 print("Parsing input...")
 # load brushwork from the .map file
@@ -90,6 +105,8 @@ depth = int(0)
 state = ["foo", ""]
 brush = []
 brushes = []
+detail = False
+worldspawn = False
 while (state[0] != ''):
 	state = fetch_line(infile)
 	# skip comment lines
@@ -118,6 +135,9 @@ while (state[0] != ''):
 			continue
 	elif (depth == 2):
 		# brush level
+		if (state[1] == "\"classname\" \"worldspawn\""):
+			worldspawn = True
+			continue
 		if (state[1].lower().startswith('terraindef') or state[1].lower().startswith('patchdef')):
 			# skip the entire block
 			while (not state[1].startswith('{')):
@@ -133,8 +153,9 @@ while (state[0] != ''):
 					break
 			continue
 		elif (state[1].startswith('}')):
-			if (len(brush) > 0):
-				brushes.append(brush)
+			if (len(brush) > 0 and	\
+				((not detail_only and not structural_only) or (detail_only and detail) or (structural_only and not detail))):
+					brushes.append(brush)
 			depth = depth - 1
 			continue
 		elif (state[1].startswith('(')):
@@ -150,6 +171,7 @@ while (state[0] != ''):
 			normal = vec_normalize(vec_cross(v1, v2))
 			plane = [normal, vec_dot(p1, normal)]
 			brush.append(plane)
+			detail = state[1].find("detail") >= 0
 print("Done.")
 
 # start the output
@@ -165,17 +187,18 @@ print("Writing...")
 # find brush vertices
 index = 0
 for b in brushes:
+	detail = False
 	outfile.write('	  Begin Actor Class=Brush Name=Brush_' + str(index + 1) + ' Archetype=Brush\'Engine.Default__Brush\'\r\n' \
-		+ '		 Begin Object Class=BrushComponent Name=BrushComponent0 ObjName=BrushComponent_' + str(index) + ' Archetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\r\n' \
-		+ '			Brush=Model\'Model_' + str(index) + '\'\r\n' \
-		+ '			ReplacementPrimitive=None\r\n' \
-		+ '			LightingChannels=(bInitialized=True,Dynamic=True)\r\n' \
-		+ '			Name="BrushComponent_' + str(index) + '"\r\n' \
-		+ '			ObjectArchetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\r\n' \
-		+ '		 End Object\r\n' \
-		+ '		 CsgOper=CSG_Add\r\n' \
-		+ '		 Begin Brush Name=Model_' + str(index) + '\r\n' \
-		+ '			Begin PolyList\r\n')
+				+ '		 Begin Object Class=BrushComponent Name=BrushComponent0 ObjName=BrushComponent_' + str(index) + ' Archetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\r\n' \
+				+ '			Brush=Model\'Model_' + str(index) + '\'\r\n' \
+				+ '			ReplacementPrimitive=None\r\n' \
+				+ '			LightingChannels=(bInitialized=True,Dynamic=True)\r\n' \
+				+ '			Name="BrushComponent_' + str(index) + '"\r\n' \
+				+ '			ObjectArchetype=BrushComponent\'Engine.Default__Brush:BrushComponent0\'\r\n' \
+				+ '		 End Object\r\n' \
+				+ '		 CsgOper=CSG_Add\r\n' \
+				+ '		 Begin Brush Name=Model_' + str(index) + '\r\n' \
+				+ '			Begin PolyList\r\n')
 	# calculate the vertex set
 	vertices = []
 	for i in range(len(b) - 2):
