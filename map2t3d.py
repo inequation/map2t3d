@@ -271,16 +271,17 @@ for b in brushes:
 			return int(atan2(y, x) / pi * 180.0)
 		relevant.sort(key=get_angle_key)
 		# finally, dump the vertices to file
+		# invert the X coordinates, UE uses a different coordinate system than Quake
 		for v in relevant:
 			if (not writtenFirst):
 				outfile.write('				  Origin   %(ox)0+13.6f,%(oy)0+13.6f,%(oz)0+13.6f\r\n' \
-					% {'ox' : v[0], 'oy' : v[1], 'oz' : v[2]} \
+					% {'ox' : -v[0], 'oy' : v[1], 'oz' : v[2]} \
 							+ '				  Normal   %(nx)0+13.6f,%(ny)0+13.6f,%(nz)0+13.6f\r\n' \
-					% {'nx' : p[0][0], 'ny': p[0][1], 'nz': p[0][2]} \
+					% {'nx' : -p[0][0], 'ny': p[0][1], 'nz': p[0][2]} \
 							+ '				  TextureU +00001.000000,+00000.000000,+00000.000000\r\n' \
 							+ '				  TextureV +00000.000000,+00001.000000,+00000.000000\r\n')
 				writtenFirst = True
-			outfile.write('				  Vertex   %(x)0+13.6f,%(y)0+13.6f,%(z)0+13.6f\r\n' % {'x' : v[0], 'y': v[1], 'z': v[2]})
+			outfile.write('				  Vertex   %(x)0+13.6f,%(y)0+13.6f,%(z)0+13.6f\r\n' % {'x' : -v[0], 'y': v[1], 'z': v[2]})
 		# finalize polygon
 		outfile.write('			   End Polygon\r\n')
 	# finalize brush
