@@ -266,8 +266,8 @@ for b in brushes:
 		tb = get_tangent_binormal(p[0])
 		def get_angle_key(v):
 			r = vec_sub(v, centre)
-			x = vec_dot(r, tb[0])
-			y = vec_dot(r, tb[1])
+			y = vec_dot(r, tb[0])
+			x = vec_dot(r, tb[1])
 			return int(atan2(y, x) / pi * 180.0)
 		relevant.sort(key=get_angle_key)
 		# finally, dump the vertices to file
